@@ -1,5 +1,4 @@
-# Generated data — regenerate with src/generate/generate_sources.py
-data/raw/
+# Generated data — data/raw/ is committed; regenerate with src/generate/generate_sources.py
 data/silver/
 data/*.duckdb
 
@@ -18,3 +17,6 @@ venv/
 spark-warehouse/
 metastore_db/
 derby.log
+
+# Local tooling
+.claude/
