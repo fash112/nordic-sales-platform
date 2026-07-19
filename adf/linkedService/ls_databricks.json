@@ -1,0 +1,15 @@
+{
+  "name": "ls_databricks",
+  "properties": {
+    "type": "AzureDatabricks",
+    "description": "Managed-identity authentication. No tokens in the linked service and no secrets in pipeline JSON -- the ADF managed identity is granted workspace and storage access separately, so nothing sensitive is committed to git.",
+    "typeProperties": {
+      "domain": "https://adb-0000000000000000.0.azuredatabricks.net",
+      "authentication": "MSI",
+      "workspaceResourceId": "/subscriptions/<subscription-id>/resourceGroups/rg-nordic/providers/Microsoft.Databricks/workspaces/dbw-nordic",
+      "newClusterNodeType": "Standard_DS3_v2",
+      "newClusterNumOfWorker": "2",
+      "newClusterSparkVersion": "14.3.x-scala2.12"
+    }
+  }
+}

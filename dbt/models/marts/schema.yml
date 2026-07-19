@@ -1,0 +1,129 @@
+version: 2
+
+models:
+
+  - name: fct_sales
+    description: >
+      Sales fact at order-line grain. One row per (country, order_id).
+      Returns are retained as negative quantity and negative revenue, so any
+      sum over revenue is net of returns by default.
+    # Grain is enforced by tests/assert_fct_sales_grain.sql -- a native
+    # singular test, so the project carries no package dependencies.
+
+    columns:
+      - name: order_id
+        description: Degenerate dimension carried on the fact.
+        tests: [not_null]
+
+      - name: country
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['SE', 'NO', 'DK', 'FI']
+
+      - name: date_key
+        description: FK to dim_date.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+
+      - name: customer_key
+        description: FK to dim_customer. Composite of country and customer_no.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_key
+
+      - name: product_key
+        description: FK to dim_product.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_key
+
+      - name: currency
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['SEK', 'NOK', 'DKK', 'EUR']
+
+      - name: channel
+        description: Nulls were coalesced to 'unknown' in staging.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['retail', 'online', 'partner', 'direct', 'unknown']
+
+      - name: quantity
+        description: >
+          Negative values are legitimate returns. A not_null test is correct
+          here but a positive-value test would be wrong.
+        tests: [not_null]
+
+      - name: revenue_eur
+        tests: [not_null]
+
+  - name: dim_customer
+    description: SCD Type 1. Natural key is (country, customer_no).
+    columns:
+      - name: customer_key
+        tests: [unique, not_null]
+      - name: customer_no
+        tests: [not_null]
+      - name: country
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['SE', 'NO', 'DK', 'FI']
+      - name: customer_name
+        description: >
+          Encoding damage would surface as U+FFFD here. Silver flags those rows
+          before they reach this model, so a failure implies the gate leaked.
+        tests: [not_null]
+      - name: lifetime_order_count
+        tests: [not_null]
+
+  - name: dim_product
+    description: One row per SKU. Global catalogue, no country qualifier needed.
+    columns:
+      - name: product_key
+        tests: [unique, not_null]
+      - name: sku
+        tests: [unique, not_null]
+      - name: category
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Furniture', 'Accessories', 'Peripherals', 'Displays']
+
+  - name: dim_date
+    description: Conformed date spine covering exactly the observed order range.
+    columns:
+      - name: date_key
+        tests: [unique, not_null]
+      - name: date_day
+        tests: [unique, not_null]
+      - name: year
+        tests: [not_null]
+
+  - name: stg_sales
+    description: >
+      Quality gate. Rows Silver marked dq_status = 'fail' are excluded here and
+      nowhere else, so there is a single answer to "why is this row missing".
+    columns:
+      - name: order_id
+        tests: [not_null]
+      - name: revenue_local
+        tests: [not_null]

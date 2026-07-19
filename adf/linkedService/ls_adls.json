@@ -1,0 +1,10 @@
+{
+  "name": "ls_adls",
+  "properties": {
+    "type": "AzureBlobFS",
+    "description": "Data lake with bronze, silver and gold containers. Managed identity, no account keys.",
+    "typeProperties": {
+      "url": "https://nordicdl.dfs.core.windows.net"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "ds_raw_country_file",
+  "properties": {
+    "description": "Source file for one country. Encoding is a parameter because the four feeds genuinely differ -- Norway is latin-1, Finland carries a UTF-8 BOM. Hardcoding utf-8 here is the fastest way to silently corrupt Nordic customer names.",
+    "linkedServiceName": { "referenceName": "ls_adls", "type": "LinkedServiceReference" },
+    "parameters": {
+      "country": { "type": "string" },
+      "encoding": { "type": "string", "defaultValue": "utf-8" }
+    },
+    "type": "DelimitedText",
+    "typeProperties": {
+      "location": {
+        "type": "AzureBlobFSLocation",
+        "fileSystem": "raw",
+        "folderPath": { "value": "@concat('sales/', dataset().country)", "type": "Expression" }
+      },
+      "encodingName": { "value": "@dataset().encoding", "type": "Expression" },
+      "firstRowAsHeader": true
+    }
+  }
+}

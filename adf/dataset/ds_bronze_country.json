@@ -1,0 +1,23 @@
+{
+  "name": "ds_bronze_country",
+  "properties": {
+    "description": "Bronze landing zone, partitioned by country and load date. Bronze preserves the source as received -- no cleaning, no type coercion. If a fix is needed it happens in Silver where it is versioned and reviewable, not by mutating the landed file.",
+    "linkedServiceName": { "referenceName": "ls_adls", "type": "LinkedServiceReference" },
+    "parameters": {
+      "country": { "type": "string" },
+      "loadDate": { "type": "string" }
+    },
+    "type": "Parquet",
+    "typeProperties": {
+      "location": {
+        "type": "AzureBlobFSLocation",
+        "fileSystem": "bronze",
+        "folderPath": {
+          "value": "@concat('sales/country=', dataset().country, '/load_date=', dataset().loadDate)",
+          "type": "Expression"
+        }
+      },
+      "compressionCodec": "snappy"
+    }
+  }
+}

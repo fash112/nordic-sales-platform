@@ -1,0 +1,20 @@
+# Local development profile. DuckDB reads the Silver parquet directly, so the
+# whole Gold layer runs on a laptop with no cloud dependency.
+#
+# The production target points at Databricks SQL against the same Silver tables.
+# Model SQL is unchanged between them -- only the source binding differs.
+nordic_sales:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../data/nordic.duckdb
+      threads: 4
+
+    prod:
+      type: databricks
+      host: "{{ env_var('DATABRICKS_HOST') }}"
+      http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
+      token: "{{ env_var('DATABRICKS_TOKEN') }}"
+      schema: gold
+      threads: 8

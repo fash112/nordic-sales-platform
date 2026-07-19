@@ -1,0 +1,119 @@
+{
+  "name": "pl_nordic_daily_load",
+  "properties": {
+    "description": "Orchestration only. ADF moves files and triggers compute; it holds no transformation logic. Each country lands in Bronze under its own folder, one Databricks job reconciles all four into Silver, then dbt builds Gold. Keeping logic out of ADF means the transformations are reviewable as code in git rather than as pipeline JSON nobody can diff.",
+    "activities": [
+      {
+        "name": "ForEachCountry",
+        "type": "ForEach",
+        "typeProperties": {
+          "items": { "value": "@pipeline().parameters.countries", "type": "Expression" },
+          "isSequential": false,
+          "batchCount": 4,
+          "activities": [
+            {
+              "name": "CopyRawToBronze",
+              "type": "Copy",
+              "policy": {
+                "timeout": "0.01:00:00",
+                "retry": 2,
+                "retryIntervalInSeconds": 60,
+                "secureOutput": false
+              },
+              "typeProperties": {
+                "source": {
+                  "type": "DelimitedTextSource",
+                  "storeSettings": { "type": "AzureBlobFSReadSettings", "recursive": true }
+                },
+                "sink": {
+                  "type": "ParquetSink",
+                  "storeSettings": {
+                    "type": "AzureBlobFSWriteSettings",
+                    "copyBehavior": "PreserveHierarchy"
+                  }
+                },
+                "enableStaging": false,
+                "validateDataConsistency": true
+              },
+              "inputs": [
+                {
+                  "referenceName": "ds_raw_country_file",
+                  "type": "DatasetReference",
+                  "parameters": {
+                    "country": { "value": "@item().code", "type": "Expression" },
+                    "encoding": { "value": "@item().encoding", "type": "Expression" }
+                  }
+                }
+              ],
+              "outputs": [
+                {
+                  "referenceName": "ds_bronze_country",
+                  "type": "DatasetReference",
+                  "parameters": {
+                    "country": { "value": "@item().code", "type": "Expression" },
+                    "loadDate": {
+                      "value": "@formatDateTime(pipeline().TriggerTime,'yyyy-MM-dd')",
+                      "type": "Expression"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "name": "BuildSilver",
+        "description": "Bronze to Silver reconciliation. Runs only after all four copies succeed -- a partial Silver build would produce revenue totals missing a country, which is worse than no build at all.",
+        "type": "DatabricksSparkPython",
+        "dependsOn": [
+          { "activity": "ForEachCountry", "dependencyConditions": ["Succeeded"] }
+        ],
+        "policy": { "timeout": "0.02:00:00", "retry": 1, "retryIntervalInSeconds": 120 },
+        "linkedServiceName": { "referenceName": "ls_databricks", "type": "LinkedServiceReference" },
+        "typeProperties": {
+          "pythonFile": "dbfs:/pipelines/nordic/build_silver.py",
+          "parameters": [
+            "--raw", "abfss://bronze@nordicdl.dfs.core.windows.net/sales",
+            "--out", "abfss://silver@nordicdl.dfs.core.windows.net/sales",
+            "--format", "delta"
+          ]
+        }
+      },
+      {
+        "name": "BuildGold",
+        "description": "dbt build -- models and tests in one command. A failing test fails the activity, so bad data never reaches the reporting layer.",
+        "type": "DatabricksSparkPython",
+        "dependsOn": [{ "activity": "BuildSilver", "dependencyConditions": ["Succeeded"] }],
+        "policy": { "timeout": "0.01:00:00", "retry": 1, "retryIntervalInSeconds": 60 },
+        "linkedServiceName": { "referenceName": "ls_databricks", "type": "LinkedServiceReference" },
+        "typeProperties": {
+          "pythonFile": "dbfs:/pipelines/nordic/run_dbt.py",
+          "parameters": ["build", "--target", "prod"]
+        }
+      },
+      {
+        "name": "FailOnDataQuality",
+        "description": "dbt already fails the run when a test fails. This exists so the failure surfaces in ADF monitoring with a reason attached, rather than as an opaque exit code somebody has to open Databricks to interpret.",
+        "type": "Fail",
+        "dependsOn": [{ "activity": "BuildGold", "dependencyConditions": ["Failed"] }],
+        "typeProperties": {
+          "message": "Gold build failed, most likely a dbt test. Check: grain uniqueness on fct_sales, referential integrity to the dimensions, or the revenue reconciliation between stg_sales and fct_sales.",
+          "errorCode": "NORDIC_DQ_FAIL"
+        }
+      }
+    ],
+    "parameters": {
+      "countries": {
+        "type": "array",
+        "defaultValue": [
+          { "code": "SE", "format": "csv",   "delimiter": ";",  "encoding": "utf-8" },
+          { "code": "NO", "format": "csv",   "delimiter": ",",  "encoding": "iso-8859-1" },
+          { "code": "DK", "format": "jsonl", "delimiter": null, "encoding": "utf-8" },
+          { "code": "FI", "format": "tsv",   "delimiter": "\t", "encoding": "utf-8-sig" }
+        ]
+      }
+    },
+    "annotations": ["nordic", "sales", "medallion"]
+  }
+}

@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: silver
+    meta:
+      external_location: "read_parquet('../data/silver/**/*.parquet', hive_partitioning = true)"
+    tables:
+      - name: sales

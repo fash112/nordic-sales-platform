@@ -1,0 +1,20 @@
+# Generated data — regenerate with src/generate/generate_sources.py
+data/raw/
+data/silver/
+data/*.duckdb
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Spark
+spark-warehouse/
+metastore_db/
+derby.log
